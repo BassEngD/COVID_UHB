@@ -24,7 +24,8 @@
 
 recovery_period <- 14
 time_to_double <- 4
-contact_modifier <- 1 # beta is modified by this factor to represent social distancing. 1 by default (no measures taken)
+contact_modifier <- 0.5 # beta is modified by this factor to represent social distancing. 1 by default (no measures taken)
+social_distancing_start_date <- as.Date("2020-03-15")
 starting_population <- 1200000
 starting_infected <- 10
 starting_recovered <- 0
@@ -72,6 +73,12 @@ next_R <- function(current_I, current_R, recovery_period){
   return(recovered)
 }
 
+begin_social_distancing <- function(simulation_data, start_date, contact_modifier){
+  dates_to_change <- which(simulation_data$date >= start_date)
+  simulation_data$contact_modifier[dates_to_change] <- contact_modifier
+  return(simulation_data)
+}
+
 simulation_data <- data.frame(stringsAsFactors = FALSE
                               , date = seq.Date(from = as.Date("2020-03-01")
                                                 , to = as.Date("2020-07-01")
@@ -79,7 +86,7 @@ simulation_data <- data.frame(stringsAsFactors = FALSE
                                                 )
                               , recovery_period = recovery_period
                               , time_to_double = time_to_double
-                              , contact_modifier = contact_modifier
+                              , contact_modifier = 1
                               # , total_beds = total_beds
                               # , fraction_beds_for_covid = fraction_beds_for_covid
                               # , total_ICU = total_ICU
@@ -94,6 +101,7 @@ simulation_data <- data.frame(stringsAsFactors = FALSE
 simulation_data$susceptible[1] <- starting_population
 simulation_data$infected[1] <- starting_infected
 simulation_data$recovered[1] <- 0
+simulation_data <- begin_social_distancing(simulation_data, social_distancing_start_date, contact_modifier)
 
 for(i in seq(nrow(simulation_data))){
   if(i == 1){
