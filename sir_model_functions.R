@@ -66,7 +66,8 @@ begin_social_distancing <- function(simulation_data, social_distancing_start_dat
 
 new_simulation_table <- function(start_date, end_date, recovery_period
                                  , time_to_double, starting_population
-                                 , starting_infected 
+                                 , starting_infected, hospitalisation_rate
+                                 , require_ICU_rate
                                  ){
   simulation_data <- data.frame(stringsAsFactors = FALSE
                                 , date = seq.Date(from = start_date
@@ -101,10 +102,10 @@ new_simulation_table <- function(start_date, end_date, recovery_period
                                 )
 
   simulation_data$newly_infected[1] <- 0
-  simulation_data$newly_symptomatic[1] <- 0
+  simulation_data$newly_symptomatic[1] <- starting_infected
   simulation_data$newly_recovered[1] <- 0
-  simulation_data$newly_hospitalised[1] <- 0
-  simulation_data$newly_requiring_ICU[1] <- 0
+  simulation_data$newly_hospitalised[1] <- round(starting_infected * hospitalisation_rate)
+  simulation_data$newly_requiring_ICU[1] <- round(starting_infected * hospitalisation_rate * require_ICU_rate)
   simulation_data$newly_left_hospital[1] <- 0
   simulation_data$newly_left_ICU[1] <- 0
   
@@ -113,8 +114,8 @@ new_simulation_table <- function(start_date, end_date, recovery_period
   simulation_data$total_incubating[1] <- 0
   simulation_data$total_symptomatic[1] <- simulation_data$infected[1]
   simulation_data$total_recovered[1] <- 0
-  simulation_data$total_in_hospital[1] <- 0
-  simulation_data$total_in_ICU[1] <- 0
+  simulation_data$total_in_hospital[1] <- round(starting_infected * hospitalisation_rate)
+  simulation_data$total_in_ICU[1] <- round(starting_infected * hospitalisation_rate * require_ICU_rate)
   simulation_data$recovered[1] <- 0
   
   return(simulation_data)
@@ -205,16 +206,44 @@ model_infection <- function(simulation_data
   return(simulation_data)
 }
 
+plot_simulation <- function(simulation_data){
+  tidy_simulation <- pivot_longer(data = simulation_data[, c(1,13,15,16)]
+                                  , cols = -date
+                                  , names_to = "variable"
+  )
+  tidy_simulation$variable <- as.factor(tidy_simulation$variable)  
+
+  simulation_plot <- ggplot(data = tidy_simulation
+                            , mapping = aes(x = date
+                                            , y = value
+                                            , group = variable
+                                            )
+                            ) +
+    labs(title = "Model Output") +
+    xlab("Date") +
+    ylab("Number of People") +
+    geom_line(aes(linetype = variable)) +
+    scale_y_continuous(trans='log10')
+  
+  return(simulation_plot)
+}
+
+
+
+
+
+
+
 recovery_period <- 18
-time_to_double <- 4
+time_to_double <- 10
 incubation_period <- 4
 contact_modifier <- 0.3 # beta is modified by this factor to represent social distancing. 1 by default (no measures taken)
 social_distancing_start_date <- as.Date("2020-03-23")
 starting_population <- 1200000
-starting_infected <- 10
+starting_infected <- 500
 starting_recovered <- 0
-start_date <- as.Date("2020-03-05")
-end_date <- as.Date("2022-03-05")
+start_date <- as.Date("2020-03-31")
+end_date <- as.Date("2021-03-31")
 # total_beds <- 500
 # fraction_beds_for_covid <- 0.6
 # total_ICU <- 50
@@ -224,37 +253,24 @@ require_ICU_rate <- 0.20      # percentage of _admissions_ requiring ICU
 hospital_LOS <- 11            # average length of stay in hospital
 ICU_LOS <- 8                  # average length of stay in ICU
 
-simulation_data <- new_simulation_table(start_date
-                                        , end_date
-                                        , recovery_period
-                                        , time_to_double
-                                        , starting_population
-                                        , starting_infected
-                                        ) %>%
-  begin_social_distancing(social_distancing_start_date
-                          , contact_modifier
-                          ) %>%
-  model_infection(incubation_period
-                  , hospital_LOS
-                  , ICU_LOS
-                  , hospitalisation_rate
-                  , require_ICU_rate
-                  )
-
-library(tidyverse)
-library(ggplot2)
-
-tidy_simulation <- pivot_longer(data = simulation_data[, c(1,13,15,16)]
-                                , cols = -date
-                                , names_to = "variable"
-                                )
-
-tidy_simulation$variable <- as.factor(tidy_simulation$variable)
-
-ggplot(data = tidy_simulation, mapping = aes(x = date, y = value, group = variable)) +
-  labs(title = "Model Output") +
-  xlab("Date") +
-  ylab("Number of People") +
-  geom_line(aes(linetype = variable)) +
-  scale_y_continuous(trans='log10') +
-  geom_vline(xintercept = social_distancing_start_date, linetype = "dotted")
+# simulation_data <- new_simulation_table(start_date
+#                                         , end_date
+#                                         , recovery_period
+#                                         , time_to_double
+#                                         , starting_population
+#                                         , starting_infected
+#                                         , hospitalisation_rate
+#                                         , require_ICU_rate
+#                                         ) %>%
+#   begin_social_distancing(social_distancing_start_date
+#                           , contact_modifier
+#                           ) %>%
+#   model_infection(incubation_period
+#                   , hospital_LOS
+#                   , ICU_LOS
+#                   , hospitalisation_rate
+#                   , require_ICU_rate
+#                   )
+# 
+# plot(simulation_data %>%
+#        plot_simulation())
