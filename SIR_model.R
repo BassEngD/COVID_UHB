@@ -29,13 +29,14 @@ social_distancing_start_date <- as.Date("2020-03-15")
 starting_population <- 1200000
 starting_infected <- 10
 starting_recovered <- 0
+start_date <- as.Date("2020-03-01")
+end_date <- as.Date("2020-07-01")
 # total_beds <- 500
 # fraction_beds_for_covid <- 0.6
 # total_ICU <- 50
 # fraction_ICU_for_covid <- 0.75
 hospitalisation_rate <- 0.10  # percentage of cases requiring hospital admission
-require_ICU_rate <- 0.20      # percentage of admissions requiring ICU
-
+require_ICU_rate <- 0.20      # percentage of _admissions_ requiring ICU
 
 gamma_value <- function(recovery_period){
   1 / recovery_period
@@ -73,15 +74,15 @@ next_R <- function(current_I, current_R, recovery_period){
   return(recovered)
 }
 
-begin_social_distancing <- function(simulation_data, start_date, contact_modifier){
-  dates_to_change <- which(simulation_data$date >= start_date)
+begin_social_distancing <- function(simulation_data, social_distancing_start_date, contact_modifier){
+  dates_to_change <- which(simulation_data$date >= social_distancing_start_date)
   simulation_data$contact_modifier[dates_to_change] <- contact_modifier
   return(simulation_data)
 }
 
 simulation_data <- data.frame(stringsAsFactors = FALSE
-                              , date = seq.Date(from = as.Date("2020-03-01")
-                                                , to = as.Date("2020-07-01")
+                              , date = seq.Date(from = start_date
+                                                , to = end_date
                                                 , by = "days"
                                                 )
                               , recovery_period = recovery_period
