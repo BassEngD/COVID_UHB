@@ -32,6 +32,8 @@ starting_recovered <- 0
 # fraction_beds_for_covid <- 0.6
 # total_ICU <- 50
 # fraction_ICU_for_covid <- 0.75
+hospitalisation_rate <- 0.10  # percentage of cases requiring hospital admission
+require_ICU_rate <- 0.20      # percentage of admissions requiring ICU
 
 
 gamma_value <- function(recovery_period){
@@ -85,8 +87,8 @@ simulation_data <- data.frame(stringsAsFactors = FALSE
                               , susceptible = NA_integer_
                               , infected = NA_integer_
                               , recovered = NA_integer_
-                              # , hospitalised = NA_integer_
-                              # , require_ICU = NA_integer_
+                              , hospitalised = NA_integer_
+                              , require_ICU = NA_integer_
                               )
 
 simulation_data$susceptible[1] <- starting_population
@@ -115,4 +117,8 @@ for(i in seq(nrow(simulation_data))){
                                          , current_R = simulation_data$recovered[i-1]
                                          , recovery_period = simulation_data$recovery_period[i-1]
                                          )
+  simulation_data$hospitalised[i] <- simulation_data$infected[i] * hospitalisation_rate
+  simulation_data$hospitalised[i] <- round(simulation_data$hospitalised[i], 0)
+  simulation_data$require_ICU[i] <- simulation_data$hospitalised[i] * require_ICU_rate
+  simulation_data$require_ICU[i] <- round(simulation_data$require_ICU[i], 0)
 }
