@@ -22,10 +22,11 @@
 #I(t+1) = (β S(t) I(t) − γI(t)) + I(t)  # Infected
 #R(t+1) = (γI(t)) + R(t)                # Recovered
 
-recovery_period <- 14
+recovery_period <- 18
 time_to_double <- 4
+incubation_period <- 4
 contact_modifier <- 0.5 # beta is modified by this factor to represent social distancing. 1 by default (no measures taken)
-social_distancing_start_date <- as.Date("2020-03-15")
+social_distancing_start_date <- as.Date("2020-03-23")
 starting_population <- 1200000
 starting_infected <- 10
 starting_recovered <- 0
@@ -37,6 +38,8 @@ end_date <- as.Date("2020-07-01")
 # fraction_ICU_for_covid <- 0.75
 hospitalisation_rate <- 0.10  # percentage of cases requiring hospital admission
 require_ICU_rate <- 0.20      # percentage of _admissions_ requiring ICU
+hospital_LOS <- 11            # average length of stay in hospital
+ICU_LOS <- 8                  # average length of stay in ICU
 
 gamma_value <- function(recovery_period){
   1 / recovery_period
@@ -92,16 +95,43 @@ simulation_data <- data.frame(stringsAsFactors = FALSE
                               # , fraction_beds_for_covid = fraction_beds_for_covid
                               # , total_ICU = total_ICU
                               # , fraction_ICU_for_covid = fraction_ICU_for_covid
+                              , newly_infected = NA_integer_
+                              , newly_symptomatic = NA_integer_
+                              , newly_recovered = NA_integer_
+                              , newly_hospitalised = NA_integer_
+                              , newly_requiring_ICU = NA_integer_
+                              , newly_left_hospital = NA_integer_
+                              , newly_left_ICU = NA_integer_
+                              , total_incubating = NA_integer_
+                              , total_symptomatic = NA_integer_
+                              , total_recovered = NA_integer_
+                              , total_in_hospital = NA_integer_
+                              , total_in_ICU = NA_integer_
                               , susceptible = NA_integer_
                               , infected = NA_integer_
                               , recovered = NA_integer_
                               , hospitalised = NA_integer_
                               , require_ICU = NA_integer_
+                              , confirmed_hospitalisations = NA_integer_
                               )
+
+simulation_data$newly_infected[1] <- 0
+simulation_data$newly_symptomatic[1] <- 0
+simulation_data$newly_recovered[1] <- 0
+simulation_data$newly_hospitalised[1] <- 0
+simulation_data$newly_requiring_ICU[1] <- 0
+simulation_data$newly_left_hospital[1] <- 0
+simulation_data$newly_left_ICU[1] <- 0
 
 simulation_data$susceptible[1] <- starting_population
 simulation_data$infected[1] <- starting_infected
+simulation_data$total_incubating[1] <- 0
+simulation_data$total_symptomatic[1] <- simulation_data$infected[1]
+simulation_data$total_recovered[1] <- 0
+simulation_data$total_in_hospital[1] <- 0
+simulation_data$total_in_ICU[1] <- 0
 simulation_data$recovered[1] <- 0
+
 simulation_data <- begin_social_distancing(simulation_data, social_distancing_start_date, contact_modifier)
 
 for(i in seq(nrow(simulation_data))){
@@ -122,6 +152,52 @@ for(i in seq(nrow(simulation_data))){
                                         , time_to_double = simulation_data$time_to_double[i-1]
                                         , contact_modifier = simulation_data$contact_modifier[i-1]
                                         )
+  simulation_data$newly_infected[i] <- d_s(current_S = simulation_data$susceptible[i-1]
+                                           , current_I = simulation_data$infected[i-1]
+                                           , current_R = simulation_data$recovered[i-1]
+                                           , recovery_period = simulation_data$recovery_period[i-1]
+                                           , time_to_double = simulation_data$time_to_double[i-1]
+                                           , contact_modifier = simulation_data$contact_modifier[i-1]
+                                           )
+  simulation_data$newly_infected[i] <- round(simulation_data$newly_infected[i],0)
+  
+  newly_symptomatic_day <- i - incubation_period
+  simulation_data$newly_symptomatic[i] <- ifelse(newly_symptomatic_day > 0
+                                                 , simulation_data$newly_infected[newly_symptomatic_day]
+                                                 , 0
+                                                 )
+  
+  newly_recovered_day <- i - recovery_period
+  simulation_data$newly_recovered[i] <- ifelse(newly_recovered_day > 0
+                                                 , simulation_data$newly_infected[newly_recovered_day]
+                                                 , 0
+                                               )
+  
+  simulation_data$newly_hospitalised[i] <- simulation_data$newly_symptomatic[i] * hospitalisation_rate
+  simulation_data$newly_hospitalised[i] <- round(simulation_data$newly_hospitalised[i], 0)
+  simulation_data$newly_requiring_ICU[i] <- simulation_data$newly_hospitalised[i] * require_ICU_rate
+  simulation_data$newly_requiring_ICU[i] <- round(simulation_data$newly_requiring_ICU[i], 0)
+  
+  incubating_days <- (i-incubation_period):i
+  incubating_days <- incubating_days[which(incubating_days > 0)]
+  simulation_data$total_incubating[i] <- sum(simulation_data$newly_infected[incubating_days], na.rm = TRUE)
+  
+  left_hospital_day <- i - hospital_LOS
+  simulation_data$newly_left_hospital[i] <- ifelse(left_hospital_day > 0
+                                                   , simulation_data$newly_hospitalised[left_hospital_day]
+                                                   , 0
+                                                   )
+  left_ICU_day <- i - ICU_LOS
+  simulation_data$newly_left_ICU[i] <- ifelse(left_ICU_day > 0
+                                              , simulation_data$newly_requiring_ICU[left_ICU_day]
+                                              , 0
+                                              )
+  
+  simulation_data$total_recovered[i] <- sum(simulation_data$newly_recovered, na.rm = TRUE)
+  simulation_data$total_incubating[i] <- sum(simulation_data$newly_infected, na.rm = TRUE) - simulation_data$total_recovered[i]
+  simulation_data$total_in_hospital[i] <- sum(simulation_data$newly_hospitalised, na.rm = TRUE) - sum(simulation_data$newly_left_hospital, na.rm = TRUE)
+  simulation_data$total_in_ICU[i] <- sum(simulation_data$newly_requiring_ICU, na.rm = TRUE) - sum(simulation_data$newly_left_ICU, na.rm = TRUE)
+  
   simulation_data$recovered[i] <- next_R(current_I = simulation_data$infected[i-1]
                                          , current_R = simulation_data$recovered[i-1]
                                          , recovery_period = simulation_data$recovery_period[i-1]
